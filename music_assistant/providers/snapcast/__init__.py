@@ -372,6 +372,10 @@ class SnapCastProvider(PlayerProvider):
 
     def _handle_update(self) -> None:
         """Process Snapcast init Player/Group and set callback ."""
+        print( self._snapserver.streams )
+        for s_ in self._snapserver.streams:
+            print( f"STREAM: {s_._stream}" )
+
         for snap_client in self._snapserver.clients:
             if not snap_client.identifier:
                 self.logger.warning(
@@ -614,6 +618,7 @@ class SnapCastProvider(PlayerProvider):
                 ),
                 audio_output=stream_path,
                 extra_input_args=["-y", "-re"],
+                loglevel="verbose"
             ) as ffmpeg_proc:
                 player.state = PlayerState.PLAYING
                 player.current_media = media
@@ -621,7 +626,9 @@ class SnapCastProvider(PlayerProvider):
                 player.elapsed_time_last_updated = time.time()
                 self.mass.players.update(player_id)
                 self._set_childs_state(player_id)
+                self.logger.debug("start awaiting...")    
                 await ffmpeg_proc.wait()
+                self.logger.debug("finished awaiting...")
 
             self.logger.debug("Finished streaming to %s", stream_path)
             # we need to wait a bit for the stream status to become idle
@@ -725,7 +732,8 @@ class SnapCastProvider(PlayerProvider):
         return stream_name
 
     def _get_stream_path(self, stream: Snapstream) -> str:
-        stream_path = stream.path or f"tcp://{stream._stream['uri']['host']}"
+        stream_path = f"tcp://{stream._stream['uri']['host']}:{stream._stream['uri']['port']}"
+        print( f"STREAM_PATH: {stream_path}")
         return stream_path.replace("0.0.0.0", self._snapcast_server_host)
 
     async def _delete_stream(self, stream_name: str) -> None:
@@ -778,8 +786,8 @@ class SnapCastProvider(PlayerProvider):
     async def _get_or_create_stream(self, stream_name: str, queue_id: str | None) -> Snapstream:
         """Create new stream on snapcast server (or return existing one)."""
         # prefer to reuse existing stream if possible
-        if stream := self._get_snapstream(stream_name):
-            return stream
+        #if stream := self._get_snapstream(stream_name):
+        #    return stream
 
         # The control script is used only for music streams in the builtin server
         # (queue_id is None only for announcement streams).
@@ -810,6 +818,9 @@ class SnapCastProvider(PlayerProvider):
                 # if the port is already taken, the result will be an error
                 self.logger.warning(result)
                 continue
+            print("\n")
+            #self._snapserver.stream(result["id"]).port = port
+            print(self._snapserver.stream(result["id"])._stream.get('uri') )
             return self._snapserver.stream(result["id"])
         msg = "Unable to create stream - No free port found?"
         raise RuntimeError(msg)
